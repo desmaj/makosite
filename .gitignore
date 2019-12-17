@@ -1,0 +1,4 @@
+*.pyc
+*~
+makosite.egg-info
+__pycache__
