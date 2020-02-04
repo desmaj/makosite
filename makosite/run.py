@@ -1,3 +1,4 @@
+import json
 import os
 
 import click
@@ -16,8 +17,11 @@ def main():
 
 
 @main.command()
-@click.argument('siteroot', type=click.Path())
-def build(siteroot):
-    siteconfig = SiteConfig(siteroot)
+@click.argument('config-path', type=click.Path())
+@click.option('-b', '--build-dir', type=click.Path())
+def build(config_path, build_dir):
+    with open(config_path, 'r') as config_file:
+        config = json.loads(config_file.read())
+    siteconfig = SiteConfig(config)
     builder = SiteBuilder(siteconfig)
     builder.build()
