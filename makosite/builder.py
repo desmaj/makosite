@@ -3,6 +3,7 @@ import datetime
 import fnmatch
 import glob
 import json
+import operator
 import os
 import shutil
 
@@ -38,11 +39,25 @@ class SiteConfig(object):
         self.buildtime = datetime.datetime.now()
         self.buildtemp = '.build-tmp'
 
+    def format_path(self, path):
+        if (
+                self.is_content_item(path) and
+                not self.is_static(path) and
+                self._config.get('rewrite-urls')
+        ):
+            path = os.path.join(path[:-5], 'index.html')
+        return path
+
     def output_path(self, path):
-        return os.path.join(
+        outpath = os.path.join(
             self.buildtemp,
             os.path.relpath(path, self.siteroot),
         )
+        outpath = self.format_path(outpath)
+        outdir = os.path.dirname(outpath)
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        return outpath
 
     @property
     def title(self):
@@ -58,7 +73,14 @@ class SiteConfig(object):
 
     def is_content_item(self, filepath):
         filename = os.path.basename(filepath)
-        return filename not in ['index.html', '__layout__.html']
+        return (
+            filename.endswith(".html") and
+            filename not in [
+                'index.html',
+                '__layout__.html',
+                '__page__.html',
+            ]
+        )
 
     def is_ignored(self, filepath):
         filename = os.path.basename(filepath)
@@ -175,27 +197,29 @@ class DirectoryContext(object):
             return self.site.siteurl
 
         if resource_path.startswith('/'):
+            resource_path = resource_path[1:]
+        else:
             resource_path = '/'.join([self._path, resource_path])
+        resource_path = self.site.format_path(resource_path)
+        if os.path.basename(resource_path) == 'index.html':
+            resource_path = os.path.dirname(resource_path)
         return '{}{}'.format(self.site.siteurl, resource_path)
 
-    def items(self, pattern=None, limit=None, reversed=False):
+    def items(self, pattern=None, limit=None, order=None, reversed=False):
         if pattern is None:
             pattern = '*'
+        if order is None:
+            order = 'date'
         content_pattern = os.path.join(self.site.siteroot, pattern)
         matching_items = [
             filepath
-            for filepath in sorted(
-                    glob.glob(content_pattern),
-                    reverse=reversed,
-            )
+            for filepath in glob.glob(content_pattern)
             if (
                     not os.path.isdir(filepath) and
                     self.site.is_content_item(filepath) and
                     not self.site.is_ignored(filepath)
             )
         ]
-        if limit is not None:
-            matching_items = matching_items[:limit]
 
         directory_contexts = {}
 
@@ -207,7 +231,7 @@ class DirectoryContext(object):
                     self.site,
                     dirpath,
                 )
-            item_url = self.url(os.path.relpath(filepath, self.site.siteroot))
+            item_url = self.url("/" + os.path.relpath(filepath, self.site.siteroot))
             with open(filepath, 'r') as item_file:
                 item_context = PageContext(
                     os.path.basename(filepath).rsplit('.', 1)[1],
@@ -221,6 +245,16 @@ class DirectoryContext(object):
                         ContentItem(Template(item_str), item_context)
                     )
                 )
+
+        matches = sorted(
+            matches,
+            key=lambda match: getattr(match[1].metadata, order),
+            reverse=reversed,
+        )
+
+        if limit is not None:
+            matches = matches[:limit]
+
         return matches
 
     def params(self):
@@ -349,7 +383,9 @@ class SiteBuilder(object):
                 page_path = directory_context.output_path(
                     os.path.join(str(page_index+1), 'index.html')
                 )
-                os.makedirs(os.path.dirname(page_path))
+                page_dir = os.path.dirname(page_path)
+                if not os.path.exists(page_dir):
+                    os.makedirs(page_dir)
                 with open(page_path, 'wb') as page_file:
                     page_file.write(page_contents)
                 base_item_index += items_per_page
