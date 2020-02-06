@@ -270,8 +270,9 @@ class DirectoryContext(object):
 
 class PaginationContext(object):
 
-    def __init__(self, page_number, page_items, parent):
+    def __init__(self, page_number, page_count, page_items, parent):
         self.page_number = page_number
+        self.page_count = page_count
         self.page_items = page_items
         self.parent = parent
 
@@ -280,11 +281,19 @@ class PaginationContext(object):
         return self.parent.config
 
     def params(self):
+        prev_page = None
+        if self.page_number < self.page_count:
+            prev_page = self.page_number + 1
+        next_page = None
+        if self.page_number > 1:
+            next_page = self.page_number - 1
         params = self.parent.params()
         params.update(
             {
                 'page_number': self.page_number,
                 'page_items': self.page_items,
+                'prev_page': prev_page,
+                'next_page': next_page,
             }
         )
         return params
@@ -345,8 +354,20 @@ class SiteBuilder(object):
             print(template_str)
             raise
 
-    def _render_page(self, directory_context, page_number, items, layout_path):
-        page_context = PaginationContext(page_number, items, directory_context)
+    def _render_page(
+            self,
+            directory_context,
+            page_number,
+            page_count,
+            items,
+            layout_path,
+    ):
+        page_context = PaginationContext(
+            page_number,
+            page_count,
+            items,
+            directory_context,
+        )
         template_path = directory_context.filepath('__page__.html')
         return self._render_template(template_path, page_context, layout_path)
 
@@ -372,6 +393,7 @@ class SiteBuilder(object):
                 page_contents = self._render_page(
                     directory_context,
                     page_number=page_index+1,
+                    page_count=page_count,
                     items=page_items,
                     layout_path=layout_path,
                 )
