@@ -3,7 +3,6 @@ import datetime
 import fnmatch
 import glob
 import json
-import operator
 import os
 import shutil
 
@@ -27,6 +26,23 @@ DirectoryContents = namedtuple(
 
 class SiteConfig(object):
 
+    @classmethod
+    def load(cls, config_json_filepath):
+        with open(config_json_filepath, 'r') as config_json_file:
+            config_json = json.load(config_json_file)
+
+        if '__base__' in config_json:
+            base_config_json_filepath = os.path.join(
+                os.path.dirname(config_json_filepath),
+                config_json['__base__'],
+            )
+            with open(base_config_json_filepath, 'r') as base_config_json_file:
+                base_config_json = json.load(base_config_json_file)
+            base_config_json.update(config_json)
+            config_json = base_config_json.copy()
+
+        return cls(config_json)
+
     def __init__(self, config_json):
         self._config = config_json
 
@@ -38,6 +54,10 @@ class SiteConfig(object):
 
         self.buildtime = datetime.datetime.now()
         self.buildtemp = '.build-tmp'
+
+    @property
+    def raw(self):
+        return self._config.copy()
 
     def format_path(self, path):
         if (
@@ -231,7 +251,9 @@ class DirectoryContext(object):
                     self.site,
                     dirpath,
                 )
-            item_url = self.url("/" + os.path.relpath(filepath, self.site.siteroot))
+            item_url = self.url(
+                "/" + os.path.relpath(filepath, self.site.siteroot)
+            )
             with open(filepath, 'r') as item_file:
                 item_context = PageContext(
                     os.path.basename(filepath).rsplit('.', 1)[1],
@@ -388,22 +410,26 @@ class SiteBuilder(object):
                 page_count += 1
             base_item_index = 0
             for page_index in range(page_count):
-                next_page_item_index = base_item_index+items_per_page
-                page_items = directory_items[base_item_index:next_page_item_index]
+                next_page_item_index = base_item_index + items_per_page
+                page_items = (
+                    directory_items[base_item_index:next_page_item_index]
+                )
                 page_contents = self._render_page(
                     directory_context,
-                    page_number=page_index+1,
+                    page_number=page_index + 1,
                     page_count=page_count,
                     items=page_items,
                     layout_path=layout_path,
                 )
                 if page_index == 0:
-                    index_page_path = directory_context.output_path('index.html')
+                    index_page_path = directory_context.output_path(
+                        'index.html'
+                    )
                     with open(index_page_path, 'wb') as index_page_file:
                         index_page_file.write(page_contents)
 
                 page_path = directory_context.output_path(
-                    os.path.join(str(page_index+1), 'index.html')
+                    os.path.join(str(page_index + 1), 'index.html')
                 )
                 page_dir = os.path.dirname(page_path)
                 if not os.path.exists(page_dir):
