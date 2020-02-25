@@ -2,7 +2,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 
-VERSION = '0.3.1'
+VERSION = '0.3.2'
 DESCRIPTION = """
 Simple website builder using mako templates.
 
@@ -27,6 +27,7 @@ setup(
         'beautifulsoup4>=4.8.2',
         'Click>=7.0',
         'Mako>=1.1.0',
+        'six',
     ],
     entry_points="""
     [console_scripts]
