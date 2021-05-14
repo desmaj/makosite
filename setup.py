@@ -2,7 +2,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 
-VERSION = '0.4.0'
+VERSION = '0.4.1'
 DESCRIPTION = """
 Simple website builder using mako templates.
 
